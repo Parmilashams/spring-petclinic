@@ -2,30 +2,29 @@ pipeline {
     agent any
 
     triggers {
-        // Every 5 minutes, only on Mondays
+        // Every 5 minutes on Mondays only
         cron('H/5 * * * 1')
     }
 
     options {
         timestamps()
-        disableConcurrentBuilds()
     }
 
     stages {
-
         stage('Checkout') {
             steps {
                 checkout scm
             }
         }
 
-        stage('Build + Test') {
+        stage('Build + Test + Package') {
             steps {
-                // Use Maven Wrapper on Windows
-                bat 'mvnw.cmd -B clean test'
+                // Creates target/*.jar and runs tests
+                bat 'mvnw.cmd -B clean package'
             }
             post {
                 always {
+                    // Shows test results in Jenkins
                     junit allowEmptyResults: true, testResults: '**/target/surefire-reports/*.xml'
                 }
             }
@@ -33,29 +32,29 @@ pipeline {
 
         stage('JaCoCo Report') {
             steps {
-                // Generate JaCoCo coverage report
+                // Generates HTML report in target/site/jacoco
                 bat 'mvnw.cmd -B jacoco:report'
             }
         }
 
         stage('Archive Artifact') {
             steps {
-                // Archive jar/war produced in target
-                archiveArtifacts artifacts: '**/target/*.jar, **/target/*.war', fingerprint: true
+                // Archive the generated jar(s)
+                archiveArtifacts artifacts: '**/target/*.jar', fingerprint: true
             }
         }
     }
 
     post {
         always {
-            // Publish JaCoCo HTML report (requires HTML Publisher Plugin)
+            // Publish JaCoCo HTML report (requires HTML Publisher plugin)
             publishHTML(target: [
+                allowMissing: false,
+                alwaysLinkToLastBuild: true,
+                keepAll: true,
                 reportDir: 'target/site/jacoco',
                 reportFiles: 'index.html',
-                reportName: 'JaCoCo Coverage Report',
-                keepAll: true,
-                alwaysLinkToLastBuild: true,
-                allowMissing: false
+                reportName: 'JaCoCo Coverage Report'
             ])
         }
     }
